@@ -1,4 +1,4 @@
-# tasks
+# Todo
 
 A minimal command-line task manager written in Rust.
 
