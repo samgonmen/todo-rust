@@ -37,6 +37,11 @@ enum Commands {
         /// Index from the list, use "list" command to see the index of each task
         index: i64,
     },
+    /// Mark a task as done or undone by its index, shows tasks after marking
+    Toggle {
+        /// Index from the list, use "list" command to see the index of each task
+        index: i64,
+    },
 }
 
 #[derive(Debug)]
@@ -77,6 +82,13 @@ async fn main() {
             println!("Task removed!");
             list_tasks(&pool).await.expect("Error retrieving tasks: ");
         }
+        Commands::Toggle { index } => {
+            done_or_undone(&pool, index)
+                .await
+                .expect("Error marking task as done/undone: ");
+            println!("Task marked as done/undone!");
+            list_tasks(&pool).await.expect("Error retrieving tasks: ");
+        }
     }
 }
 
@@ -111,9 +123,15 @@ async fn list_tasks(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
             } else {
                 "○".red()
             },
-            task.title,
+            if task.done {
+                task.title.strikethrough().bright_black()
+            } else {
+                task.title.white()
+            },
         );
-        if let Some(text) = task.description {
+        if let Some(text) = task.description
+            && !task.done
+        {
             println!("\t{}", text);
         }
         current_index += 1;
@@ -137,6 +155,18 @@ async fn remove_task(pool: &Pool<Sqlite>, index: i64) -> Result<SqliteQueryResul
 
     sqlx::query("DELETE FROM tasks WHERE id = ?")
         .bind(&tasks[(index - 1) as usize].id) // Exemplo: remover a tarefa com id 1
+        .execute(pool)
+        .await
+}
+
+async fn done_or_undone(pool: &Pool<Sqlite>, index: i64) -> Result<SqliteQueryResult, sqlx::Error> {
+    let tasks = get_tasks(pool).await?;
+    if index <= 0 || index > tasks.len() as i64 {
+        return Err(sqlx::Error::RowNotFound);
+    }
+
+    sqlx::query("UPDATE tasks SET done = NOT done WHERE id = ?")
+        .bind(&tasks[(index - 1) as usize].id) // Exemplo: marcar a tarefa com id 1 como feita ou desfeita
         .execute(pool)
         .await
 }
